@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Inicio</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+</head>
+<style>
+  .chart-container {
+    width: 800px;
+    height: 300;
+  }
+</style>
+<body>
+  <button id="startButton">INICIAR</button>
+  <button id="stopButton">DETENER</button>
+  <div class="chart-container">
+    <canvas id="chartCanvas" width="800" height="300"></canvas>
+  </div>
+  <div class="chart-container">
+    <canvas id="chartCanvas2" width="800" height="300"></canvas>
+  </div>
+
+  <script>
+    const startButton = document.getElementById('startButton');
+    const stopButton = document.getElementById('stopButton');
+    const socket = io();
+
+    let data = [];
+    const maxTime = 10000; // 10 segundos
+
+    const ctx = document.getElementById('chartCanvas').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'velFilteredL',
+          data: [],
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+          fill: false
+        }]
+      },
+      options: {
+    animation: {
+      duration: 0 // Deshabilitar animaciones
+    },        scales: {
+          x: {
+            type: 'linear',
+            position: 'bottom',
+            min: 0,
+            max: maxTime
+          },
+          y: {
+            min: 0,
+            max: 20,
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    const ctx2 = document.getElementById('chartCanvas2').getContext('2d');
+const chart2 = new Chart(ctx2, {
+  type: 'line',
+  data: {
+    datasets: [{
+      label: 'Total ML',
+      data: [],
+      borderColor: 'rgba(255, 99, 132, 1)',
+      borderWidth: 1,
+      fill: false
+    }]
+  },
+  options: {
+    animation: {
+      duration: 0 // Deshabilitar animaciones
+    },
+    scales: {
+      x: {
+        type: 'linear',
+        position: 'bottom',
+        min: 0,
+        max: maxTime
+      },
+      y: {
+        min: 0,
+            max: 500,
+        beginAtZero: true
+      }
+    }
+  }
+});
+
+socket.on('data', (newData) => {
+  const currentTime = newData.elapsedTime;
+  const velocity = newData.velFilteredL;
+  const waterMl = newData.localML; 
+  
+  // Eliminar puntos de datos antiguos para mantener la ventana de tiempo en 10 segundos
+  data = data.filter(d => currentTime - d.x <= maxTime);
+  
+  // Agregar nuevos puntos de datos para el primer gráfico
+  data.push({ x: currentTime, y: velocity });
+  
+  // Agregar nuevos puntos de datos para el segundo gráfico
+  chart2.data.datasets[0].data.push({ x: currentTime, y: waterMl });
+  
+  // Actualizar los datos del primer gráfico
+  chart.data.datasets[0].data = data;
+  chart.options.scales.x.max = currentTime;
+  chart.options.scales.x.min = Math.max(0, currentTime - maxTime);
+  
+  chart2.options.scales.x.max = currentTime;
+  chart2.options.scales.x.min = Math.max(0, currentTime - maxTime);
+  
+  // Actualizar ambos gráficos
+  chart.update();
+  chart2.update();
+});
+
+
+    startButton.addEventListener('click', () => {
+  // Restablecer el array de datos al iniciar
+  data = [];
+  chart.data.datasets[0].data = data;
+  chart.update();
+  chart2.data.datasets[0].data = data;
+  chart2.update();
+  
+  // Emitir el evento 'start' al servidor
+  socket.emit('start');
+});
+
+
+    stopButton.addEventListener('click', () => {
+      socket.emit('stop');
+    });
+
+
+  </script>
+</body>
+</html>
+
+
+
